@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	_"log"
+	_ "log"
 	"reflect"
 )
 
@@ -34,7 +34,7 @@ func New(conn io.ReadWriteCloser, registry *Registry) *Gossock {
 		handlers:   make(map[string][]interface{}),
 		parser:     newParser(conn),
 		serializer: newSerializer(conn),
-		registry: registry,
+		registry:   registry,
 	}
 
 	// Begins parsing frames
@@ -58,13 +58,13 @@ func New(conn io.ReadWriteCloser, registry *Registry) *Gossock {
 			}
 
 			switch frame.typ {
-			case 'j':
+			case frameTypeJson:
 				var err error
 				obj, err = g.parseBody(typ, frame.body)
 				if err != nil {
 					continue
 				}
-			case 'b':
+			case frameTypeBinary:
 				obj = &obj
 				obj = reflect.ValueOf(&frame.body).Convert(reflect.PtrTo(typ)).Interface()
 			default:
@@ -96,7 +96,7 @@ func (g *Gossock) Send(body interface{}) error {
 	if reflect.TypeOf(body).ConvertibleTo(reflect.TypeOf([]byte{})) {
 		return g.serializer.serialize(&frame{
 			name: name,
-			typ:  'b',
+			typ:  frameTypeBinary,
 			body: reflect.ValueOf(body).Convert(reflect.TypeOf([]byte{})).Interface().([]byte),
 		})
 	}
@@ -109,7 +109,7 @@ func (g *Gossock) Send(body interface{}) error {
 
 	err = g.serializer.serialize(&frame{
 		name: name,
-		typ:  'j',
+		typ:  frameTypeJson,
 		body: b,
 	})
 
@@ -131,7 +131,7 @@ func (g *Gossock) On(handler interface{}) error {
 	handlerType := reflect.TypeOf(handler)
 
 	if handlerType.NumIn() != 1 {
-		panic( errors.New(""))
+		panic(errors.New(""))
 		return errors.New("Handler should accept exactly one parameter")
 	}
 
@@ -160,18 +160,18 @@ func (g *Gossock) On(handler interface{}) error {
 // TODO: DO LOCK
 //
 func (g *Gossock) Off(name string, handler interface{}) {
-		handlers := g.handlers[name]
+	handlers := g.handlers[name]
 
-		var na []interface{}
-		for _, v := range handlers {
-			if v == handler {
-				continue
-			} else {
-				na = append(na, v)
-			}
+	var na []interface{}
+	for _, v := range handlers {
+		if v == handler {
+			continue
+		} else {
+			na = append(na, v)
 		}
+	}
 
-		g.handlers[name] = na
+	g.handlers[name] = na
 }
 
 //

@@ -8,18 +8,17 @@ package gossock
 // Frame types
 //
 const (
-	FRAME_TYPE_BINARY = 'b'
-	FRAME_TYPE_JSON   = 'j'
+	frameTypeBinary = 'b'
+	frameTypeJson   = 'j'
 )
 
 //
 // frame represents message
 //
 type frame struct {
-
 	name string
 
-	typ  byte
+	typ byte
 
 	body []byte
 }
