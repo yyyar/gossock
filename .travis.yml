@@ -1,0 +1,11 @@
+language: go
+
+go:
+  - 1.8.x
+  - master
+
+env:
+  - GOMAXPROCS=4
+
+script:
+  - go test -v ./...
