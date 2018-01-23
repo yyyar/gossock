@@ -5,8 +5,8 @@
 package gossock
 
 import (
-	"io"
 	"encoding/binary"
+	"io"
 )
 
 //
@@ -18,10 +18,12 @@ type parser struct {
 	reader io.Reader
 
 	// frame may be incomplete parsed frame
-	frame  frame
+	frame frame
 
 	// frames is used to push parsed frames
 	frames chan (frame)
+
+	errors chan (error)
 }
 
 //
@@ -30,9 +32,10 @@ type parser struct {
 func newParser(reader io.Reader) *parser {
 
 	parser := parser{
-		reader:   reader,
+		reader: reader,
 		frames: make(chan frame),
 		frame:  frame{},
+		errors: make(chan error),
 	}
 
 	go parser.loop()
@@ -49,7 +52,7 @@ func (p *parser) loop() {
 	for {
 
 		if err := p.nextFrame(); err != nil {
-			close(p.frames)
+			p.errors <- err
 			return
 		}
 

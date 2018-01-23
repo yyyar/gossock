@@ -5,8 +5,9 @@
 package gossock
 
 import (
-	"io"
 	"encoding/binary"
+	"io"
+	"sync"
 )
 
 //
@@ -16,6 +17,7 @@ type serializer struct {
 
 	// writer for writing resulting bytes
 	writer io.Writer
+	mutex  sync.Mutex
 }
 
 //
@@ -23,17 +25,21 @@ type serializer struct {
 //
 func newSerializer(writer io.Writer) *serializer {
 
-	serializer := serializer{
+	s := serializer{
 		writer: writer,
+		mutex:  sync.Mutex{},
 	}
 
-	return &serializer
+	return &s
 }
 
 //
 // serialize writes frame to writer
 //
-func (s *serializer) serialize(frame* frame) error {
+func (s *serializer) serialize(frame *frame) error {
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	if err := binary.Write(s.writer, binary.BigEndian, frame.typ); err != nil {
 		return err

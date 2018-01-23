@@ -17,11 +17,26 @@ import (
 // that wraps io.ReadWriteCloser
 //
 type Gossock struct {
-	conn       io.ReadWriteCloser
-	handlers   map[string][]interface{}
-	registry   *Registry
-	parser     *parser
+
+	// conn is underlying connection
+	conn io.ReadWriteCloser
+
+	// handlers is user callbacks for messages
+	handlers map[string][]interface{}
+
+	// registry is storage of message types
+	// to message name mapping and vice-versa
+	registry *Registry
+
+	// parser does parsing from conn reader
+	parser *parser
+
+	// serializer does serialization to conn writer
 	serializer *serializer
+
+	// Close is channel to handle Gossock close
+	// due to error or because of any other case
+	Errors chan error
 }
 
 //
@@ -35,51 +50,69 @@ func New(conn io.ReadWriteCloser, registry *Registry) *Gossock {
 		parser:     newParser(conn),
 		serializer: newSerializer(conn),
 		registry:   registry,
+		Errors:     make(chan error, 1),
 	}
 
-	// Begins parsing frames
-	go func() {
-
-		for {
-			var frame frame
-			var ok bool
-
-			if frame, ok = <-g.parser.frames; !ok {
-				// No more frames, stop gorouting
-				return
-			}
-
-			var obj interface{} = nil
-			var typ reflect.Type = nil
-
-			if typ, ok = g.registry.registryInverse[frame.name]; !ok {
-				// frame is not registered
-				continue
-			}
-
-			switch frame.typ {
-			case frameTypeJson:
-				var err error
-				obj, err = g.parseBody(typ, frame.body)
-				if err != nil {
-					continue
-				}
-			case frameTypeBinary:
-				obj = &obj
-				obj = reflect.ValueOf(&frame.body).Convert(reflect.PtrTo(typ)).Interface()
-			default:
-				// frame of unknown type
-				continue
-			}
-
-			// Callback handlers
-			for _, handler := range g.handlers[frame.name] {
-				go reflect.ValueOf(handler).Call([]reflect.Value{reflect.ValueOf(obj)})
-			}
-		}
-	}()
+	go g.loop()
 
 	return g
+}
+
+//
+// Closes underlying io.ReadWriteCloser
+//
+func (g *Gossock) Close() error {
+	return g.conn.Close()
+}
+
+//
+// loops represents inner parsing / frames processing loop
+//
+func (g *Gossock) loop() {
+
+	for {
+		var frame frame
+		var ok bool
+
+		select {
+		case err := <-g.parser.errors:
+			g.Errors <- err
+			close(g.Errors)
+			return
+
+		case frame = <-g.parser.frames:
+		}
+
+		var typ reflect.Type = nil
+
+		if typ, ok = g.registry.registryInverse[frame.name]; !ok {
+			// frame is not registered
+			continue
+		}
+
+		var obj interface{} = nil
+
+		switch frame.typ {
+		case frameTypeJson:
+			var err error
+			obj, err = g.parseBody(typ, frame.body)
+			if err != nil {
+				continue
+			}
+		case frameTypeBinary:
+			obj = &obj
+			obj = reflect.ValueOf(&frame.body).Convert(reflect.PtrTo(typ)).Interface()
+		default:
+			// frame of unknown type
+			continue
+		}
+
+		/* Call registered handlers */
+		for _, handler := range g.handlers[frame.name] {
+			go reflect.ValueOf(handler).Call([]reflect.Value{reflect.ValueOf(obj)})
+		}
+	}
+
 }
 
 //
@@ -92,35 +125,34 @@ func (g *Gossock) Send(body interface{}) error {
 		return errors.New("Message for type " + reflect.TypeOf(body).String() + " is not registered")
 	}
 
+	var f frame
+
 	// Special case for binary data
 	if reflect.TypeOf(body).ConvertibleTo(reflect.TypeOf([]byte{})) {
-		return g.serializer.serialize(&frame{
+
+		f = frame{
 			name: name,
 			typ:  frameTypeBinary,
 			body: reflect.ValueOf(body).Convert(reflect.TypeOf([]byte{})).Interface().([]byte),
-		})
+		}
+
+	} else {
+
+		var err error
+		b, err := g.serializeBody(body)
+
+		if err != nil {
+			return err
+		}
+
+		f = frame{
+			name: name,
+			typ:  frameTypeJson,
+			body: b,
+		}
 	}
 
-	b, err := g.serializeBody(body)
-
-	if err != nil {
-		return err
-	}
-
-	err = g.serializer.serialize(&frame{
-		name: name,
-		typ:  frameTypeJson,
-		body: b,
-	})
-
-	return err
-}
-
-//
-// Closes underlying io.ReadWriteCloser
-//
-func (g *Gossock) Close() error {
-	return g.conn.Close()
+	return g.serializer.serialize(&f)
 }
 
 //

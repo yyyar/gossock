@@ -7,8 +7,8 @@ package gossock
 import (
 	"io"
 	"log"
-	"testing"
 	"sync"
+	"testing"
 )
 
 //
@@ -31,14 +31,15 @@ type HelloMessage struct {
 	Content string `json:"content"`
 }
 
-
 //
-// TestBasic tests that receiver can get what 
+// TestBasic tests that receiver can get what
 // sender sent
 //
 func TestBasic(t *testing.T) {
 
 	var wg sync.WaitGroup
+
+	wg.Add(3)
 
 	r1, w1 := io.Pipe()
 	r2, w2 := io.Pipe()
@@ -55,7 +56,7 @@ func TestBasic(t *testing.T) {
 		var err error
 
 		err = s.On(func(hello *HelloMessage) {
-			t.Log("On Hello:", hello)
+			log.Println("On Hello:", hello)
 			wg.Done()
 		})
 
@@ -64,7 +65,7 @@ func TestBasic(t *testing.T) {
 		}
 
 		err = s.On(func(binary *BinaryMessage) {
-			t.Log("On Binary:", string(*binary))
+			log.Println("On Binary:", string(*binary))
 			wg.Done()
 		})
 
@@ -72,33 +73,39 @@ func TestBasic(t *testing.T) {
 			log.Println("Error On(Binary)", err)
 		}
 
+		log.Println("Server", <-s.Errors)
+		wg.Done()
 	}()
 
 	//
 	// Launch sender party
 	//
-	func() {
-		c := New(MockConnection{r1, w2}, registry)
-		var err error
+	c := New(MockConnection{r1, w2}, registry)
+	var err error
 
-		wg.Add(1)
-		err = c.Send(HelloMessage{
-			"Hello, World!",
-		})
+	err = c.Send(HelloMessage{
+		"Hello, World!",
+	})
 
-		if err != nil {
-			log.Println("Error c.Send(Hello):", err)
-		}
+	if err != nil {
+		log.Println("Error c.Send(Hello):", err)
+	}
 
-		wg.Add(1)
-		err = c.Send(BinaryMessage{
-			0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0xFF,
-		})
+	err = c.Send(BinaryMessage{
+		0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0xFF,
+	})
 
-		if err != nil {
-			log.Println("Error c.Send(Binary)", err)
-		}
-	}()
+	if err != nil {
+		log.Println("Error c.Send(Binary)", err)
+	}
+
+	r1.Close()
+	r2.Close()
+	w1.Close()
+	w2.Close()
+	log.Println("Client:", <-c.Errors)
+
+	log.Println("Sending message after close:", c.Send(HelloMessage{}))
 
 	wg.Wait()
 
