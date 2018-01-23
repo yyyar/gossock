@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	_ "log"
+	"log"
 	"reflect"
 )
 
@@ -108,8 +108,20 @@ func (g *Gossock) loop() {
 		}
 
 		/* Call registered handlers */
+		// TODO: Make optionally async and run in separate goroutine
 		for _, handler := range g.handlers[frame.name] {
-			go reflect.ValueOf(handler).Call([]reflect.Value{reflect.ValueOf(obj)})
+
+			func(handler interface{}, obj interface{}) {
+
+				defer func() {
+					if r := recover(); r != nil {
+						log.Println("Panic recovered", r)
+						// Recovered, log it
+					}
+				}()
+
+				reflect.ValueOf(handler).Call([]reflect.Value{reflect.ValueOf(obj)})
+			}(handler, obj)
 		}
 	}
 

@@ -65,8 +65,10 @@ func TestBasic(t *testing.T) {
 		}
 
 		err = s.On(func(binary *BinaryMessage) {
+
 			log.Println("On Binary:", string(*binary))
 			wg.Done()
+			panic("ADA")
 		})
 
 		if err != nil {
