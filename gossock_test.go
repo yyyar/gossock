@@ -53,8 +53,8 @@ func TestBasic(t *testing.T) {
 	// Launch receiver party
 	//
 	go func() {
-		s := New(registry, context.WithValue(context.Background(), "key", "value"))
-		s.Start(MockConnection{r2, w1})
+		s := New(registry)
+		s.Start(context.WithValue(context.Background(), "key", "value"), MockConnection{r2, w1})
 		var err error
 
 		err = s.On(func(ctx context.Context, hello *HelloMessage) {
@@ -87,8 +87,8 @@ func TestBasic(t *testing.T) {
 	//
 	// Launch sender party
 	//
-	c := New(registry, context.Background())
-	c.Start(MockConnection{r1, w2})
+	c := New(registry)
+	c.Start(context.Background(), MockConnection{r1, w2})
 	var err error
 
 	err = c.Send(HelloMessage{

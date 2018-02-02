@@ -46,13 +46,12 @@ type Gossock struct {
 //
 // New creates new Gossock around io.ReadWriteCloser
 //
-func New(registry *Registry, ctx context.Context) *Gossock {
+func New(registry *Registry) *Gossock {
 
 	g := &Gossock{
 		handlers:   make(map[string][]interface{}),
 		registry:   registry,
 		Errors:     make(chan error, 1),
-		ctx: ctx,
 	}
 
 	return g
@@ -61,8 +60,9 @@ func New(registry *Registry, ctx context.Context) *Gossock {
 //
 // Starts loop
 //
-func (g *Gossock) Start(conn io.ReadWriteCloser) {
+func (g *Gossock) Start(ctx context.Context, conn io.ReadWriteCloser) {
 
+	g.ctx = ctx
 	g.conn = conn
 	g.parser = newParser(conn)
 	g.serializer = newSerializer(conn)
