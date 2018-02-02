@@ -195,7 +195,7 @@ func (g *Gossock) On(handler interface{}) error {
 		return errors.New("Handler should accept exactly two arguments")
 	}
 
-	if handlerType.In(0).Kind() != reflect.Interface || !reflect.TypeOf(g.ctx).Implements( handlerType.In(0)){
+	if handlerType.In(0).Kind() != reflect.Interface || !reflect.TypeOf((*context.Context)(nil)).Elem().Implements( handlerType.In(0)){
 		panic(errors.New("First argument of handler should be context.Context"))
 	}
 

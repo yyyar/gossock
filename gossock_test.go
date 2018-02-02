@@ -54,7 +54,6 @@ func TestBasic(t *testing.T) {
 	//
 	go func() {
 		s := New(registry)
-		s.Start(context.WithValue(context.Background(), "key", "value"), MockConnection{r2, w1})
 		var err error
 
 		err = s.On(func(ctx context.Context, hello *HelloMessage) {
@@ -80,6 +79,8 @@ func TestBasic(t *testing.T) {
 			log.Println("Error On(Binary)", err)
 		}
 
+		s.Start(context.WithValue(context.Background(), "key", "value"), MockConnection{r2, w1})
+		
 		log.Println("Server", <-s.Errors)
 		wg.Done()
 	}()
