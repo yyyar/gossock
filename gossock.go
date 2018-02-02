@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"reflect"
+	"context"
 )
 
 //
@@ -37,25 +38,36 @@ type Gossock struct {
 	// Close is channel to handle Gossock close
 	// due to error or because of any other case
 	Errors chan error
+
+	// context to pass to handlers
+	ctx context.Context
 }
 
 //
 // New creates new Gossock around io.ReadWriteCloser
 //
-func New(conn io.ReadWriteCloser, registry *Registry) *Gossock {
+func New(registry *Registry, ctx context.Context) *Gossock {
 
 	g := &Gossock{
-		conn:       conn,
 		handlers:   make(map[string][]interface{}),
-		parser:     newParser(conn),
-		serializer: newSerializer(conn),
 		registry:   registry,
 		Errors:     make(chan error, 1),
+		ctx: ctx,
 	}
 
-	go g.loop()
-
 	return g
+}
+
+//
+// Starts loop
+//
+func (g *Gossock) Start(conn io.ReadWriteCloser) {
+
+	g.conn = conn
+	g.parser = newParser(conn)
+	g.serializer = newSerializer(conn)
+
+	go g.loop()
 }
 
 //
@@ -120,7 +132,11 @@ func (g *Gossock) loop() {
 					}
 				}()
 
-				reflect.ValueOf(handler).Call([]reflect.Value{reflect.ValueOf(obj)})
+				reflect.ValueOf(handler).Call([]reflect.Value{
+					reflect.ValueOf(g.ctx),
+					reflect.ValueOf(obj),
+				})
+
 			}(handler, obj)
 		}
 	}
@@ -174,16 +190,20 @@ func (g *Gossock) On(handler interface{}) error {
 
 	handlerType := reflect.TypeOf(handler)
 
-	if handlerType.NumIn() != 1 {
-		panic(errors.New(""))
-		return errors.New("Handler should accept exactly one parameter")
+	if handlerType.NumIn() != 2 {
+		panic(errors.New("Handlers should accept exactly two argunents"))
+		return errors.New("Handler should accept exactly two arguments")
 	}
 
-	if handlerType.In(0).Kind() != reflect.Ptr {
-		return errors.New("Handler should accept pointer")
+	if handlerType.In(0).Kind() != reflect.Interface || !reflect.TypeOf(g.ctx).Implements( handlerType.In(0)){
+		panic(errors.New("First argument of handler should be context.Context"))
 	}
 
-	parameterType := handlerType.In(0).Elem()
+	if handlerType.In(1).Kind() != reflect.Ptr {
+		return errors.New("Second argument of handler should accept pointer")
+	}
+
+	parameterType := handlerType.In(1).Elem()
 	name, ok := g.registry.registry[parameterType]
 	if !ok {
 		return errors.New("Message not registered")

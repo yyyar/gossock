@@ -9,6 +9,7 @@ import (
 	"log"
 	"sync"
 	"testing"
+	"context"
 )
 
 //
@@ -52,10 +53,14 @@ func TestBasic(t *testing.T) {
 	// Launch receiver party
 	//
 	go func() {
-		s := New(MockConnection{r2, w1}, registry)
+		s := New(registry, context.WithValue(context.Background(), "key", "value"))
+		s.Start(MockConnection{r2, w1})
 		var err error
 
-		err = s.On(func(hello *HelloMessage) {
+		err = s.On(func(ctx context.Context, hello *HelloMessage) {
+
+			log.Println("Context key: ", ctx.Value("key").(string))
+
 			log.Println("On Hello:", hello)
 			wg.Done()
 		})
@@ -64,7 +69,7 @@ func TestBasic(t *testing.T) {
 			log.Println("Error On(Hello)", err)
 		}
 
-		err = s.On(func(binary *BinaryMessage) {
+		err = s.On(func(ctx context.Context, binary *BinaryMessage) {
 
 			log.Println("On Binary:", string(*binary))
 			wg.Done()
@@ -82,7 +87,8 @@ func TestBasic(t *testing.T) {
 	//
 	// Launch sender party
 	//
-	c := New(MockConnection{r1, w2}, registry)
+	c := New(registry, context.Background())
+	c.Start(MockConnection{r1, w2})
 	var err error
 
 	err = c.Send(HelloMessage{
