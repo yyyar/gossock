@@ -5,12 +5,13 @@
 package gossock
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log"
 	"reflect"
-	"context"
+	"runtime/debug"
 )
 
 //
@@ -127,8 +128,7 @@ func (g *Gossock) loop() {
 
 				defer func() {
 					if r := recover(); r != nil {
-						log.Println("Panic recovered", r)
-						// Recovered, log it
+						log.Printf("Panic %v recovered at %s", r, string(debug.Stack()))
 					}
 				}()
 
