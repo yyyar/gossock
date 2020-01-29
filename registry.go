@@ -33,13 +33,13 @@ func NewRegistry() *Registry {
 // Register registers message with name and associates it with type
 //
 func (r *Registry) Register(name string, typ interface{}) error {
-	
+
 	_, ok := r.registry[reflect.TypeOf(typ)]
 	if ok {
-		return errors.New(name + " is already registered")
+		return errors.New(reflect.TypeOf(typ).Name() + " is already registered")
 	}
 
-	_, ok = r.registry[reflect.TypeOf(name)]
+	_, ok = r.registryInverse[name]
 	if ok {
 		return errors.New(name + " is already registered")
 	}
